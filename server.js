@@ -1,10 +1,16 @@
 // Breach Zero room server: serves index.html and relays room presence over WebSocket.
 // Anyone who opens the site can create or join rooms. Rooms live in memory.
 const http = require('http'), fs = require('fs'), path = require('path');
-const { WebSocketServer } = require('ws');
-const PORT = process.env.PORT || 3000;
+let WebSocketServer;
+try { ({ WebSocketServer } = require('ws')); }
+catch (e) { console.error("FATAL: the 'ws' package is missing. Run: npm install"); process.exit(1); }
+process.on('uncaughtException', e => console.error('uncaught:', e));
+process.on('unhandledRejection', e => console.error('unhandled:', e));
+const PORT = Number(process.env.PORT) || 8080;
 const MAX_CONN = 400, MAX_PER_IP = 8, MAX_ROOMS = 300, ROOM_CAP = 32;
-const page = fs.readFileSync(path.join(__dirname, 'index.html'));
+let page;
+try { page = fs.readFileSync(path.join(__dirname, 'index.html')); }
+catch (e) { console.error('index.html not found next to server.js (' + __dirname + '). Serving a notice instead.'); page = Buffer.from('index.html is missing from the deployment.'); }
 const srv = http.createServer((req, res) => {
   if (req.url === '/health') { res.writeHead(200); return res.end('ok'); }
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
@@ -72,4 +78,4 @@ wss.on('connection', (ws, req) => {
 });
 setInterval(() => { for (const name of dirty) broadcast(name); dirty.clear(); }, 50);   // 20 Hz snapshots
 setInterval(() => { for (const ws of wss.clients) { if (!ws.alive) { ws.terminate(); continue; } ws.alive = false; ws.ping(); } }, 30000);
-srv.listen(PORT, () => console.log('Breach Zero on :' + PORT));
+srv.listen(PORT, '0.0.0.0', () => console.log('Breach Zero listening on 0.0.0.0:' + PORT + ', index.html ' + page.length + ' bytes'));
